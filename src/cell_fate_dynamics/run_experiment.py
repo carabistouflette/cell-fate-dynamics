@@ -20,6 +20,8 @@ from cell_fate_dynamics.evaluation import (
     evaluate_representation_clustering,
     neighborhood_overlap,
     evaluate_velocity_confidence,
+    validate_raw_counts,
+    validate_fate_probabilities,
 )
 
 
@@ -51,6 +53,7 @@ def run_pipeline(
         plt.close()
 
         print("Step 2: Preprocessing and baseline PCA...")
+        validate_raw_counts(adata.X)
         adata.layers["counts"] = adata.X.copy()
         adata = preprocess_data(adata, min_shared_counts=20, n_top_genes=2000)
 
@@ -168,6 +171,7 @@ def run_pipeline(
     # Step 6b: Compute fate probabilities
     print("Step 6b: Computing fate probabilities...")
     g.compute_fate_probabilities(solver="gmres", use_petsc=False)
+    validate_fate_probabilities(g.fate_probabilities)
 
     terminal_lineages = list(g.fate_probabilities.names)
     print(f"Terminal lineages: {terminal_lineages}")

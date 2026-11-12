@@ -103,3 +103,72 @@ def evaluate_velocity_confidence(
         "mean_velocity_length": float(adata.obs["velocity_length"].mean()),
     }
     return metrics
+
+
+def validate_raw_counts(
+    counts: np.ndarray | object,
+    tolerance: float = 1e-5,
+) -> bool:
+    """Validate that count layer contains non-negative integer-like values.
+
+    Parameters
+    ----------
+    counts : np.ndarray or sparse matrix
+        Raw count matrix or layer.
+    tolerance : float
+        Allowed numerical tolerance from nearest integer.
+
+    Returns
+    -------
+    bool
+        True if all values are non-negative and integer-like.
+
+    Raises
+    ------
+    ValueError
+        If negative values or non-integer values are detected.
+    """
+    if hasattr(counts, "tocsr") or hasattr(counts, "data") and not isinstance(counts, np.ndarray):
+        data = counts.data
+    else:
+        data = np.asarray(counts)
+    if np.any(data < 0):
+        raise ValueError("Count matrix contains negative values.")
+    if not np.allclose(data, np.round(data), atol=tolerance):
+        raise ValueError("Count matrix contains non-integer values (possibly normalized/log-transformed).")
+    return True
+
+
+def validate_fate_probabilities(
+    fate_probabilities: np.ndarray | object,
+    tolerance: float = 1e-3,
+) -> bool:
+    """Validate numerical properties of CellRank fate probabilities.
+
+    Parameters
+    ----------
+    fate_probabilities : np.ndarray or Lineage object
+        Cell x lineage transition probability matrix.
+    tolerance : float
+        Allowed deviation for row stochasticity (sum = 1.0).
+
+    Returns
+    -------
+    bool
+        True if all probabilities are finite, in [0, 1], and rows sum to 1.
+
+    Raises
+    ------
+    ValueError
+        If probabilities are invalid or row sums diverge from 1.
+    """
+    probs = np.asarray(fate_probabilities)
+    if not np.all(np.isfinite(probs)):
+        raise ValueError("Fate probabilities contain NaN or infinite values.")
+    if np.any(probs < -tolerance) or np.any(probs > 1.0 + tolerance):
+        raise ValueError("Fate probabilities are outside [0, 1].")
+    row_sums = probs.sum(axis=1)
+    if not np.allclose(row_sums, 1.0, atol=tolerance):
+        raise ValueError("Fate probabilities rows do not sum to 1.0 within tolerance.")
+    return True
+
