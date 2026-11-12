@@ -42,3 +42,41 @@ A latent representation and an inferred transition model are distinct components
 ## Reproducibility
 
 The project will document data sources, package versions, random seeds, and execution steps. All analyses use publicly available data.
+
+## Repository Structure
+
+```text
+├── data/                    # Dataset directory (.gitkeep, local cache)
+├── figures/                 # Generated visualization figures
+├── notebooks/               # Runnable analysis notebooks
+│   └── 01_cell_fate_dynamics_exploration.ipynb
+├── src/cell_fate_dynamics/  # Reusable core modules
+│   ├── __init__.py
+│   ├── data.py              # Data loading & preprocessing
+│   ├── models.py            # scVI training & scVelo dynamics
+│   └── evaluation.py        # Silhouette, neighbor overlap, velocity metrics
+├── tests/                   # Automated smoke and unit tests
+├── pyproject.toml           # Project metadata and dependencies (managed via uv)
+└── README.md
+```
+
+## Quick Start
+
+### Installation with `uv`
+
+```bash
+# Install dependencies into virtual environment
+uv sync
+```
+
+### Running the Notebook
+
+```bash
+uv run jupyter lab notebooks/01_cell_fate_dynamics_exploration.ipynb
+```
+
+### Running Tests
+
+```bash
+uv run pytest
+```
