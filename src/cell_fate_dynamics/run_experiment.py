@@ -1,6 +1,7 @@
 """Complete experiment pipeline runner for cell fate dynamics."""
 
 from __future__ import annotations
+import argparse
 import json
 import os
 import matplotlib
@@ -22,55 +23,75 @@ from cell_fate_dynamics.evaluation import (
 )
 
 
-def run_pipeline(output_dir: str = "figures", seed: int = 42) -> dict:
+def run_pipeline(
+    output_dir: str = "figures",
+    seed: int = 42,
+    use_cache: bool = False,
+) -> dict:
     os.makedirs(output_dir, exist_ok=True)
     np.random.seed(seed)
     scvi.settings.seed = seed
     scv.settings.verbosity = 1
     sc.settings.verbosity = 1
 
-    print("Step 1: Loading scVelo pancreas dataset...")
-    adata = load_pancreas_data()
-    print(f"Loaded dataset: {adata.n_obs} cells x {adata.n_vars} genes")
+    cache_file = "data/pancreas_processed.h5ad"
+    if use_cache and os.path.exists(cache_file):
+        print(f"Loading cached preprocessed dataset from {cache_file}...")
+        adata = sc.read_h5ad(cache_file)
+    else:
+        print("Step 1: Loading scVelo pancreas dataset...")
+        adata = load_pancreas_data()
+        print(f"Loaded dataset: {adata.n_obs} cells x {adata.n_vars} genes")
 
-    # 1. Proportions figure
-    fig, ax = plt.subplots(figsize=(7, 4.5))
-    scv.pl.proportions(adata, show=False)
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, "01_proportions_spliced_unspliced.png"), dpi=150)
-    plt.close()
+        # 1. Proportions figure
+        fig, ax = plt.subplots(figsize=(7, 4.5))
+        scv.pl.proportions(adata, show=False)
+        plt.tight_layout()
+        plt.savefig(os.path.join(output_dir, "01_proportions_spliced_unspliced.png"), dpi=150)
+        plt.close()
 
-    print("Step 2: Preprocessing and baseline PCA...")
-    adata.layers["counts"] = adata.X.copy()
-    adata = preprocess_data(adata, min_shared_counts=20, n_top_genes=2000)
+        print("Step 2: Preprocessing and baseline PCA...")
+        adata.layers["counts"] = adata.X.copy()
+        adata = preprocess_data(adata, min_shared_counts=20, n_top_genes=2000)
 
-    # Compute UMAP on PCA
-    sc.pp.neighbors(adata, n_pcs=30, n_neighbors=30, random_state=seed, key_added="neighbors_pca")
-    sc.tl.umap(adata, neighbors_key="neighbors_pca", random_state=seed)
-    adata.obsm["X_umap_pca"] = adata.obsm["X_umap"].copy()
+        # Compute UMAP on PCA
+        sc.pp.neighbors(adata, n_pcs=30, n_neighbors=30, random_state=seed, key_added="neighbors_pca")
+        sc.tl.umap(adata, neighbors_key="neighbors_pca", random_state=seed)
+        adata.obsm["X_umap_pca"] = adata.obsm["X_umap"].copy()
 
-    print("Step 3: Training scVI variational model...")
-    adata, vae = train_scvi(
-        adata,
-        layer="counts",
-        n_latent=30,
-        max_epochs=45,
-        batch_size=512,
-        seed=seed,
-        early_stopping=True,
-        early_stopping_patience=8,
-    )
+        print("Step 3: Training scVI variational model...")
+        adata, vae = train_scvi(
+            adata,
+            layer="counts",
+            n_latent=30,
+            max_epochs=45,
+            batch_size=512,
+            seed=seed,
+            early_stopping=True,
+            early_stopping_patience=8,
+        )
 
-    # Checkpoint saving
-    os.makedirs("data", exist_ok=True)
-    adata.write_h5ad("data/pancreas_processed.h5ad")
-    vae.save("data/scvi_model", overwrite=True)
-    print("Checkpoint saved to data/pancreas_processed.h5ad and data/scvi_model")
+        # Checkpoint saving
+        os.makedirs("data", exist_ok=True)
+        adata.write_h5ad(cache_file)
+        vae.save("data/scvi_model", overwrite=True)
+        print(f"Checkpoint saved to {cache_file} and data/scvi_model")
 
-    # Compute UMAP on scVI latent representation
-    sc.pp.neighbors(adata, use_rep="X_scVI", n_neighbors=30, random_state=seed, key_added="neighbors_scvi")
-    sc.tl.umap(adata, neighbors_key="neighbors_scvi", random_state=seed)
-    adata.obsm["X_umap_scvi"] = adata.obsm["X_umap"].copy()
+        # Compute UMAP on scVI latent representation
+        sc.pp.neighbors(adata, use_rep="X_scVI", n_neighbors=30, random_state=seed, key_added="neighbors_scvi")
+        sc.tl.umap(adata, neighbors_key="neighbors_scvi", random_state=seed)
+        adata.obsm["X_umap_scvi"] = adata.obsm["X_umap"].copy()
+
+    # Ensure UMAPs exist
+    if "X_umap_pca" not in adata.obsm:
+        sc.pp.neighbors(adata, n_pcs=30, n_neighbors=30, random_state=seed, key_added="neighbors_pca")
+        sc.tl.umap(adata, neighbors_key="neighbors_pca", random_state=seed)
+        adata.obsm["X_umap_pca"] = adata.obsm["X_umap"].copy()
+
+    if "X_umap_scvi" not in adata.obsm:
+        sc.pp.neighbors(adata, use_rep="X_scVI", n_neighbors=30, random_state=seed, key_added="neighbors_scvi")
+        sc.tl.umap(adata, neighbors_key="neighbors_scvi", random_state=seed)
+        adata.obsm["X_umap_scvi"] = adata.obsm["X_umap"].copy()
 
     # Compare PCA vs scVI embeddings
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
@@ -117,6 +138,70 @@ def run_pipeline(output_dir: str = "figures", seed: int = 42) -> dict:
     plt.savefig(os.path.join(output_dir, "04_cellrank_terminal_states.png"), dpi=150)
     plt.close()
 
+    # Step 6b: Compute fate probabilities
+    print("Step 6b: Computing fate probabilities...")
+    g.set_terminal_states()
+    g.compute_fate_probabilities(solver="gmres", use_petsc=False)
+
+    terminal_lineages = list(g.fate_probabilities.names)
+    print(f"Terminal lineages: {terminal_lineages}")
+
+    n_lineages = len(terminal_lineages)
+    fig, axes = plt.subplots(1, n_lineages, figsize=(4.5 * n_lineages, 4))
+    if n_lineages == 1:
+        axes = [axes]
+
+    for idx, lineage in enumerate(terminal_lineages):
+        col_name = f"fate_{lineage}"
+        adata.obs[col_name] = np.array(g.fate_probabilities[:, lineage]).flatten()
+        sc.pl.embedding(
+            adata,
+            basis="umap_pca",
+            color=col_name,
+            cmap="viridis",
+            ax=axes[idx],
+            show=False,
+            title=f"Fate -> {lineage}",
+        )
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, "06_fate_probabilities.png"), dpi=150)
+    plt.close()
+
+    # Step 6c: Identify lineage drivers
+    print("Step 6c: Identifying lineage drivers...")
+    df_drivers = g.compute_lineage_drivers(cluster_key="clusters")
+
+    top_lineage_drivers = {}
+    fig, axes = plt.subplots(1, n_lineages, figsize=(4.2 * n_lineages, 4.5))
+    if n_lineages == 1:
+        axes = [axes]
+
+    for idx, lineage in enumerate(terminal_lineages):
+        corr_col = f"{lineage}_corr"
+        pval_col = f"{lineage}_pval"
+        if corr_col in df_drivers.columns:
+            top_5 = df_drivers.sort_values(by=corr_col, ascending=False).head(5)
+            top_lineage_drivers[lineage] = [
+                {
+                    "gene": str(gene),
+                    "correlation": float(row[corr_col]),
+                    "pval": float(row[pval_col]),
+                }
+                for gene, row in top_5.iterrows()
+            ]
+
+            genes = list(top_5.index)[::-1]
+            corrs = [top_5.loc[g_name, corr_col] for g_name in genes]
+            axes[idx].barh(genes, corrs, color="#2b5c8f", alpha=0.85)
+            axes[idx].set_xlabel("Pearson Correlation", fontsize=9)
+            axes[idx].set_title(f"Drivers: {lineage}", fontsize=11)
+            axes[idx].set_xlim(0, 1.0)
+            axes[idx].grid(True, linestyle="--", alpha=0.5)
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, "07_lineage_drivers.png"), dpi=150)
+    plt.close()
+
     print("Step 7: Robustness & sensitivity evaluation...")
     robustness_results = {}
     rng = np.random.default_rng(seed)
@@ -159,6 +244,7 @@ def run_pipeline(output_dir: str = "figures", seed: int = 42) -> dict:
             "jaccard_k30": float(overlap_30),
         },
         "velocity_confidence": conf_metrics,
+        "lineage_drivers": top_lineage_drivers,
         "robustness": robustness_results,
     }
 
@@ -170,5 +256,32 @@ def run_pipeline(output_dir: str = "figures", seed: int = 42) -> dict:
     return metrics
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Cell Fate Dynamics experiment pipeline runner.")
+    parser.add_argument(
+        "--use-cache",
+        action="store_true",
+        help="Re-use cached preprocessed data and scVI latent space (data/pancreas_processed.h5ad).",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default="figures",
+        help="Directory to save figures and metrics (default: figures).",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Random seed for reproducibility (default: 42).",
+    )
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    run_pipeline()
+    args = parse_args()
+    run_pipeline(
+        output_dir=args.output_dir,
+        seed=args.seed,
+        use_cache=args.use_cache,
+    )

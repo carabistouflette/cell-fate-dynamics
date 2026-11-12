@@ -54,8 +54,11 @@ The project will document data sources, package versions, random seeds, and exec
 │   ├── __init__.py
 │   ├── data.py              # Data loading & preprocessing
 │   ├── models.py            # scVI training & scVelo dynamics
-│   └── evaluation.py        # Silhouette, neighbor overlap, velocity metrics
+│   ├── evaluation.py        # Silhouette, neighbor overlap, velocity metrics
+│   └── run_experiment.py    # Pipeline runner with CLI and caching
 ├── tests/                   # Automated smoke and unit tests
+│   ├── test_basic.py
+│   └── test_evaluation.py
 ├── pyproject.toml           # Project metadata and dependencies (managed via uv)
 └── README.md
 ```
@@ -67,6 +70,16 @@ The project will document data sources, package versions, random seeds, and exec
 ```bash
 # Install dependencies into virtual environment
 uv sync
+```
+
+### Running the Full Pipeline
+
+```bash
+# Complete run from scratch
+uv run python -m cell_fate_dynamics.run_experiment
+
+# Fast re-execution using cached preprocessed AnnData and scVI latent space
+uv run python -m cell_fate_dynamics.run_experiment --use-cache
 ```
 
 ### Running the Notebook

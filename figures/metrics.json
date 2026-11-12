@@ -26,6 +26,143 @@
     "mean_velocity_confidence": 0.7882210305808526,
     "mean_velocity_length": 10.280933380126953
   },
+  "lineage_drivers": {
+    "Delta": [
+      {
+        "gene": "Sst",
+        "correlation": 0.8205473749924175,
+        "pval": 0.0
+      },
+      {
+        "gene": "Arg1",
+        "correlation": 0.4643592095650301,
+        "pval": 4.359351552501686e-205
+      },
+      {
+        "gene": "Hhex",
+        "correlation": 0.4198381202688394,
+        "pval": 7.579999405942545e-163
+      },
+      {
+        "gene": "Mest",
+        "correlation": 0.3646719994457493,
+        "pval": 2.2553881446556033e-119
+      },
+      {
+        "gene": "Ptprz1",
+        "correlation": 0.3201726328405997,
+        "pval": 1.9515334987782924e-90
+      }
+    ],
+    "Ductal_1": [
+      {
+        "gene": "2810417H13Rik",
+        "correlation": 0.5808950768731546,
+        "pval": 0.0
+      },
+      {
+        "gene": "Gmnn",
+        "correlation": 0.5314595303475114,
+        "pval": 1.3539777598138952e-283
+      },
+      {
+        "gene": "Tk1",
+        "correlation": 0.5085030085038352,
+        "pval": 1.772897491173509e-254
+      },
+      {
+        "gene": "Ccnd1",
+        "correlation": 0.5027769292978657,
+        "pval": 1.3350053397238878e-247
+      },
+      {
+        "gene": "Rrm2",
+        "correlation": 0.49467814474457383,
+        "pval": 4.003553549374173e-238
+      }
+    ],
+    "Alpha": [
+      {
+        "gene": "Gcg",
+        "correlation": 0.8884567043144923,
+        "pval": 0.0
+      },
+      {
+        "gene": "Irx2",
+        "correlation": 0.6909888031381247,
+        "pval": 0.0
+      },
+      {
+        "gene": "Tmem27",
+        "correlation": 0.609093263539467,
+        "pval": 0.0
+      },
+      {
+        "gene": "Peg10",
+        "correlation": 0.566547467424002,
+        "pval": 0.0
+      },
+      {
+        "gene": "Tmsb15l",
+        "correlation": 0.5494235315365742,
+        "pval": 3.116459564525994e-308
+      }
+    ],
+    "Ductal_2": [
+      {
+        "gene": "Anxa2",
+        "correlation": 0.8349689576832674,
+        "pval": 0.0
+      },
+      {
+        "gene": "Spp1",
+        "correlation": 0.8097538918042996,
+        "pval": 0.0
+      },
+      {
+        "gene": "1700011H14Rik",
+        "correlation": 0.7993087666150348,
+        "pval": 0.0
+      },
+      {
+        "gene": "Bicc1",
+        "correlation": 0.7956781633523483,
+        "pval": 0.0
+      },
+      {
+        "gene": "Cyr61",
+        "correlation": 0.7645509439170776,
+        "pval": 0.0
+      }
+    ],
+    "Beta": [
+      {
+        "gene": "Syt13",
+        "correlation": 0.5568067847145409,
+        "pval": 0.0
+      },
+      {
+        "gene": "Map1b",
+        "correlation": 0.5404956860749849,
+        "pval": 8.951010161788787e-296
+      },
+      {
+        "gene": "Camk2n1",
+        "correlation": 0.5371391079586255,
+        "pval": 3.354715634592024e-291
+      },
+      {
+        "gene": "Tubb3",
+        "correlation": 0.523684422462031,
+        "pval": 1.902073104341408e-273
+      },
+      {
+        "gene": "Nkx6-1",
+        "correlation": 0.4959033059355677,
+        "pval": 1.5389375647725411e-239
+      }
+    ]
+  },
   "robustness": {
     "gene_downsample_90%": {
       "correlation_velocity_confidence": 0.991404665815288,
