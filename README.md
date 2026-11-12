@@ -48,23 +48,42 @@ The pipeline evaluates single-cell representation learning and dynamical transit
 | **Velocity Robustness (90% genes)** | $r = 0.9914$ | — | High trajectory stability under minor gene subsampling |
 | **Velocity Robustness (80% genes)** | $r = 0.9970$ | — | High trajectory stability under moderate gene subsampling |
 | **Velocity Robustness (70% genes)** | $r = 0.8113$ | — | Sensitivity and divergence below 80% variable genes |
+| **Fate Robustness ($90\% \to 70\%$ genes)** | Alpha: $0.971 \to 0.957$<br>Beta: $0.984 \to 0.977$ | — | CellRank terminal fate probabilities remain robust even down to 70% genes |
 
 ### 1. Latent Representations & Local Geometry
 scVI achieves clearer cell-type separation (silhouette score $0.232$ vs. $0.142$ for PCA) by explicitly modeling library size variability and count overdispersion with negative binomial distributions. However, the $k$-NN Jaccard neighborhood overlap ($13.9\%$ at $k=15$) shows that local geometry undergoes substantial non-linear reorganization between the two representations.
+
+![PCA vs scVI Representation UMAPs](figures/02_pca_vs_scvi_umap.png)
 
 ### 2. Transition Directions & Visual Projections
 > [!NOTE]
 > **Methodological Clarification**: The RNA velocity streamlines visualised on the PCA- and scVI-derived UMAPs project the **same underlying RNA velocity model** onto different 2D coordinate embeddings. Differences in streamline flows illustrate the visual distortions inherent to 2D projections rather than two independently trained dynamical models.
 
-### 3. Predicted Terminal States & Lineage Drivers
+![scVelo Streamlines Comparison](figures/03_velocity_stream_pca_and_scvi.png)
+
+### 3. Predicted Terminal States, Fate Probabilities & Lineage Drivers
 CellRank's Generalized Perron Cluster Cluster Analysis (`GPCCA`) stability criterion automatically predicts stable absorbing macrostates:
 - **Alpha & Beta lineages**: Correctly captured as terminal endocrine outcomes driven by canonical transcription factors and lineage markers:
-  - **Alpha**: `Gcg` ($r = 0.888$), `Irx2` ($r = 0.691$), `Tmem27` ($r = 0.609$)
-  - **Beta**: `Nkx6-1` ($r = 0.496$), `Syt13` ($r = 0.557$), `Camk2n1` ($r = 0.537$)
+  - **Alpha**: `Gcg` ($r = 0.889$), `Irx2` ($r = 0.691$), `Tmem27` ($r = 0.609$)
+  - **Beta**: `Map1b` ($r = 0.553$), `Camk2n1` ($r = 0.551$), `Syt13` ($r = 0.547$), `Nkx6-1` ($r = 0.496$)
 - **Ductal cells**: Identified as an absorbing boundary in this snapshot because ductal cells represent a distinct, non-differentiating lineage in late endocrine morphogenesis.
 - **Delta cells**: While biologically differentiated, Delta cells represent a rare subpopulation (70 cells, $\sim 1.9\%$ of the dataset). GPCCA detects Delta as an individual macrostate, but its reduced stability index reflects the difficulty of automated terminal state prediction on minor populations without prior constraints.
 
-### 4. Limitations & Scientific Caveats
+![CellRank Predicted Terminal States](figures/04_cellrank_terminal_states.png)
+
+#### Fate Probabilities & Lineage Drivers
+CellRank resolves absorbing Markov chain absorption probabilities towards each terminal state and prioritizes key driver genes correlated with lineage commitment:
+
+![CellRank Fate Probabilities](figures/06_fate_probabilities.png)
+
+![Lineage Driver Genes](figures/07_lineage_drivers.png)
+
+### 4. Robustness & Perturbation Analysis
+Trajectories and fate probabilities were evaluated across random gene downsampling subsets (90%, 80%, and 70% of highly variable genes). While direction confidence experiences moderate loss below 80% ($r = 0.811$), absorbing Markov fate probabilities demonstrate remarkable stability ($r > 0.95$ across all terminal lineages down to 70% genes).
+
+![Robustness Perturbation Analysis](figures/05_robustness_perturbation_analysis.png)
+
+### 5. Limitations & Scientific Caveats
 - **Steady-state splicing assumptions**: Conventional RNA velocity models assume constant rates of transcription, splicing, and degradation across time, an assumption frequently violated during rapid transient differentiation bursts.
 - **Snapshot inferences vs. lineage tracing**: Inferred transition graphs and fate probabilities remain model-based statistical reconstructions from static single-cell snapshots, which provide hypotheses rather than true longitudinal validation.
 
@@ -72,16 +91,16 @@ CellRank's Generalized Perron Cluster Cluster Analysis (`GPCCA`) stability crite
 
 ```text
 ├── data/                    # Dataset directory (.gitkeep, local cache)
-├── figures/                 # Generated visualization figures
+├── figures/                 # Generated visualization figures & metrics.json
 ├── notebooks/               # Runnable analysis notebooks
 │   └── 01_cell_fate_dynamics_exploration.ipynb
 ├── src/cell_fate_dynamics/  # Reusable core modules
 │   ├── __init__.py
 │   ├── data.py              # Data loading & preprocessing
 │   ├── models.py            # scVI training & scVelo dynamics
-│   ├── evaluation.py        # Silhouette, neighbor overlap, velocity metrics
-│   └── run_experiment.py    # Pipeline runner with CLI and caching
-├── tests/                   # Automated smoke and unit tests
+│   ├── evaluation.py        # Silhouette, neighbor overlap, validation metrics
+│   └── run_experiment.py    # Pipeline runner with CLI, caching & robustness
+├── tests/                   # Automated unit & integration tests
 │   ├── test_basic.py
 │   └── test_evaluation.py
 ├── pyproject.toml           # Project metadata and dependencies (managed via uv)
@@ -92,22 +111,31 @@ CellRank's Generalized Perron Cluster Cluster Analysis (`GPCCA`) stability crite
 
 ### Installation with `uv`
 
+To clone and set up the development environment with all dependencies (including `jupyterlab`):
+
 ```bash
+# Clone repository
+git clone https://github.com/carabistouflette/cell-fate-dynamics.git
+cd cell-fate-dynamics
+
 # Install dependencies into virtual environment
 uv sync
+
+# (Optional) Install editable package
+uv pip install -e .
 ```
 
 ### Running the Full Pipeline
 
 ```bash
-# Complete run from scratch
+# Complete run from scratch (trains scVI, fits velocity, computes GPCCA fates & robustness)
 uv run python -m cell_fate_dynamics.run_experiment
 
 # Fast re-execution using cached preprocessed AnnData and scVI latent space
 uv run python -m cell_fate_dynamics.run_experiment --use-cache
 ```
 
-### Running the Notebook
+### Running the Interactive Notebook
 
 ```bash
 uv run jupyter lab notebooks/01_cell_fate_dynamics_exploration.ipynb

@@ -250,13 +250,16 @@ def run_pipeline(
         fate_corrs = {}
         try:
             vk_sub = cr.kernels.VelocityKernel(adata_sub)
-            vk_sub.compute_transition_matrix(n_jobs=-1, show_progress_bar=False)
+            vk_sub.compute_transition_matrix(show_progress_bar=False)
             ck_sub = cr.kernels.ConnectivityKernel(adata_sub)
             ck_sub.compute_transition_matrix()
             g_sub = cr.estimators.GPCCA(0.8 * vk_sub + 0.2 * ck_sub)
             g_sub.compute_macrostates(n_states=5, cluster_key="clusters")
             g_sub.set_terminal_states(states=terminal_lineages)
-            g_sub.compute_fate_probabilities(solver="gmres", use_petsc=False)
+            try:
+                g_sub.compute_fate_probabilities(solver="direct", use_petsc=False)
+            except Exception:
+                g_sub.compute_fate_probabilities(solver="gmres", use_petsc=False)
             for lineage in terminal_lineages:
                 sub_prob = np.array(g_sub.fate_probabilities[:, lineage]).flatten()
                 r = float(np.corrcoef(full_fate_probs[lineage], sub_prob)[0, 1])

@@ -119,24 +119,28 @@
       "correlation_velocity_confidence": 0.991404665815288,
       "mean_confidence": 0.791172836986834,
       "fate_probabilities_correlation": {
-        "Alpha": 0.9706362055600504,
-        "Ductal_2": 0.9973803090211416,
-        "Beta": 0.9835786959874598
+        "Alpha": 0.9706362367369034,
+        "Ductal_2": 0.9973803203397457,
+        "Beta": 0.9835786680850015
       }
     },
     "gene_downsample_80%": {
       "correlation_velocity_confidence": 0.9970331414962407,
       "mean_confidence": 0.7943266974288358,
       "fate_probabilities_correlation": {
-        "Alpha": 0.9962619594089235,
-        "Ductal_2": 0.9961238902165657,
-        "Beta": 0.9923705820629831
+        "Alpha": 0.9962619534770135,
+        "Ductal_2": 0.996123935113479,
+        "Beta": 0.9923704428653803
       }
     },
     "gene_downsample_70%": {
       "correlation_velocity_confidence": 0.8112544667289926,
       "mean_confidence": 0.7590834417964233,
-      "fate_probabilities_correlation": {}
+      "fate_probabilities_correlation": {
+        "Alpha": 0.9571290270446845,
+        "Ductal_2": 0.9990805265992603,
+        "Beta": 0.9765855487325203
+      }
     }
   }
 }
