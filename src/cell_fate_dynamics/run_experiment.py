@@ -71,16 +71,16 @@ def run_pipeline(
             early_stopping_patience=8,
         )
 
-        # Checkpoint saving
-        os.makedirs("data", exist_ok=True)
-        adata.write_h5ad(cache_file)
-        vae.save("data/scvi_model", overwrite=True)
-        print(f"Checkpoint saved to {cache_file} and data/scvi_model")
-
         # Compute UMAP on scVI latent representation
         sc.pp.neighbors(adata, use_rep="X_scVI", n_neighbors=30, random_state=seed, key_added="neighbors_scvi")
         sc.tl.umap(adata, neighbors_key="neighbors_scvi", random_state=seed)
         adata.obsm["X_umap_scvi"] = adata.obsm["X_umap"].copy()
+
+        # Checkpoint saving with both UMAPs included
+        os.makedirs("data", exist_ok=True)
+        adata.write_h5ad(cache_file)
+        vae.save("data/scvi_model", overwrite=True)
+        print(f"Checkpoint saved to {cache_file} and data/scvi_model")
 
     # Ensure UMAPs exist
     if "X_umap_pca" not in adata.obsm:
@@ -113,15 +113,29 @@ def run_pipeline(
     scv.tl.velocity_embedding(adata, basis="umap_scvi")
 
     fig, axes = plt.subplots(1, 2, figsize=(16, 6))
-    scv.pl.velocity_embedding_stream(adata, basis="umap_pca", color="clusters", ax=axes[0], show=False, title="scVelo Velocity (PCA UMAP)")
-    scv.pl.velocity_embedding_stream(adata, basis="umap_scvi", color="clusters", ax=axes[1], show=False, title="scVelo Velocity (scVI UMAP)")
+    scv.pl.velocity_embedding_stream(
+        adata,
+        basis="umap_pca",
+        color="clusters",
+        ax=axes[0],
+        show=False,
+        title="scVelo Velocity (PCA UMAP projection)",
+    )
+    scv.pl.velocity_embedding_stream(
+        adata,
+        basis="umap_scvi",
+        color="clusters",
+        ax=axes[1],
+        show=False,
+        title="scVelo Velocity (scVI UMAP projection)\n[Note: same velocity model projected on different embedding]",
+    )
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, "03_velocity_stream_pca_and_scvi.png"), dpi=150)
     plt.close()
 
     conf_metrics = evaluate_velocity_confidence(adata)
 
-    print("Step 6: Terminal states with CellRank GPCCA...")
+    print("Step 6: Predicting terminal states with CellRank GPCCA...")
     vk = cr.kernels.VelocityKernel(adata)
     vk.compute_transition_matrix(n_jobs=-1, show_progress_bar=False)
     ck = cr.kernels.ConnectivityKernel(adata)
@@ -132,22 +146,34 @@ def run_pipeline(
     g.compute_macrostates(n_states=5, cluster_key="clusters")
     adata.obs["macrostates"] = g.macrostates
 
+    # Predict terminal states based on macrostate stability
+    g.predict_terminal_states(method="stability")
+    adata.obs["terminal_states"] = g.terminal_states
+    predicted_terminals = [str(c) for c in g.terminal_states.cat.categories]
+    print(f"Predicted terminal states: {predicted_terminals}")
+
     fig, ax = plt.subplots(figsize=(8, 6))
-    sc.pl.embedding(adata, basis="umap_pca", color="macrostates", ax=ax, show=False, title="CellRank Inferred Macrostates (GPCCA)")
+    sc.pl.embedding(
+        adata,
+        basis="umap_pca",
+        color="terminal_states",
+        ax=ax,
+        show=False,
+        title="CellRank Predicted Terminal States (GPCCA Stability)",
+    )
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, "04_cellrank_terminal_states.png"), dpi=150)
     plt.close()
 
     # Step 6b: Compute fate probabilities
     print("Step 6b: Computing fate probabilities...")
-    g.set_terminal_states()
     g.compute_fate_probabilities(solver="gmres", use_petsc=False)
 
     terminal_lineages = list(g.fate_probabilities.names)
     print(f"Terminal lineages: {terminal_lineages}")
 
     n_lineages = len(terminal_lineages)
-    fig, axes = plt.subplots(1, n_lineages, figsize=(4.5 * n_lineages, 4))
+    fig, axes = plt.subplots(1, n_lineages, figsize=(4.8 * n_lineages, 4.2))
     if n_lineages == 1:
         axes = [axes]
 
@@ -161,7 +187,7 @@ def run_pipeline(
             cmap="viridis",
             ax=axes[idx],
             show=False,
-            title=f"Fate -> {lineage}",
+            title=f"Fate Prob -> {lineage}",
         )
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, "06_fate_probabilities.png"), dpi=150)
@@ -172,7 +198,7 @@ def run_pipeline(
     df_drivers = g.compute_lineage_drivers(cluster_key="clusters")
 
     top_lineage_drivers = {}
-    fig, axes = plt.subplots(1, n_lineages, figsize=(4.2 * n_lineages, 4.5))
+    fig, axes = plt.subplots(1, n_lineages, figsize=(4.4 * n_lineages, 4.8))
     if n_lineages == 1:
         axes = [axes]
 
@@ -205,28 +231,72 @@ def run_pipeline(
     print("Step 7: Robustness & sensitivity evaluation...")
     robustness_results = {}
     rng = np.random.default_rng(seed)
+
+    full_fate_probs = {lineage: np.array(g.fate_probabilities[:, lineage]).flatten() for lineage in terminal_lineages}
+
     for frac in [0.9, 0.8, 0.7]:
         sub_idx = rng.choice(adata.n_vars, size=int(adata.n_vars * frac), replace=False)
         adata_sub = adata[:, sub_idx].copy()
         scv.tl.velocity(adata_sub, mode="stochastic")
         scv.tl.velocity_graph(adata_sub, n_jobs=-1)
         scv.tl.velocity_confidence(adata_sub)
-        corr = float(np.corrcoef(adata.obs["velocity_confidence"].values, adata_sub.obs["velocity_confidence"].values)[0, 1])
+        corr_conf = float(np.corrcoef(adata.obs["velocity_confidence"].values, adata_sub.obs["velocity_confidence"].values)[0, 1])
+
+        # CellRank transition kernel on downsampled data to check fate stability
+        fate_corrs = {}
+        try:
+            vk_sub = cr.kernels.VelocityKernel(adata_sub)
+            vk_sub.compute_transition_matrix(n_jobs=-1, show_progress_bar=False)
+            ck_sub = cr.kernels.ConnectivityKernel(adata_sub)
+            ck_sub.compute_transition_matrix()
+            g_sub = cr.estimators.GPCCA(0.8 * vk_sub + 0.2 * ck_sub)
+            g_sub.compute_macrostates(n_states=5, cluster_key="clusters")
+            g_sub.set_terminal_states(states=terminal_lineages)
+            g_sub.compute_fate_probabilities(solver="gmres", use_petsc=False)
+            for lineage in terminal_lineages:
+                sub_prob = np.array(g_sub.fate_probabilities[:, lineage]).flatten()
+                r = float(np.corrcoef(full_fate_probs[lineage], sub_prob)[0, 1])
+                fate_corrs[lineage] = r
+        except Exception as e:
+            print(f"Notice: Subset GPCCA fate calculation skipped for frac {frac}: {e}")
+
         robustness_results[f"gene_downsample_{int(frac*100)}%"] = {
-            "correlation_velocity_confidence": corr,
+            "correlation_velocity_confidence": corr_conf,
             "mean_confidence": float(adata_sub.obs["velocity_confidence"].mean()),
+            "fate_probabilities_correlation": fate_corrs,
         }
 
-    # Plot robustness comparison
-    fig, ax = plt.subplots(figsize=(6.5, 4.5))
+    # Plot two-panel robustness figure
+    fig, axes = plt.subplots(1, 2, figsize=(13, 4.8))
     fractions = [70, 80, 90]
-    corrs = [robustness_results[f"gene_downsample_{f}%"]["correlation_velocity_confidence"] for f in fractions]
-    ax.plot(fractions, corrs, marker="o", color="#2b5c8f", lw=2, markersize=8)
-    ax.set_xlabel("Gene Subsampling Percentage (%)", fontsize=11)
-    ax.set_ylabel("Velocity Confidence Correlation with Full Dataset", fontsize=11)
-    ax.set_title("Robustness of Velocity Inferences Under Gene Subsampling", fontsize=12)
-    ax.set_ylim(0, 1.05)
-    ax.grid(True, linestyle="--", alpha=0.6)
+    corrs_conf = [robustness_results[f"gene_downsample_{f}%"]["correlation_velocity_confidence"] for f in fractions]
+    axes[0].plot(fractions, corrs_conf, marker="o", color="#2b5c8f", lw=2, markersize=8)
+    axes[0].set_xlabel("Gene Subsampling Percentage (%)", fontsize=11)
+    axes[0].set_ylabel("Correlation with Full Dataset", fontsize=11)
+    axes[0].set_title("RNA Velocity Confidence Stability", fontsize=12)
+    axes[0].set_ylim(0, 1.05)
+    axes[0].grid(True, linestyle="--", alpha=0.6)
+
+    # Plot fate probability stability across lineages
+    markers = ["s", "^", "D", "v", "o"]
+    has_fate_plots = False
+    for i, lineage in enumerate(terminal_lineages):
+        lineage_corrs = [
+            robustness_results[f"gene_downsample_{f}%"].get("fate_probabilities_correlation", {}).get(lineage, np.nan)
+            for f in fractions
+        ]
+        if not all(np.isnan(lineage_corrs)):
+            axes[1].plot(fractions, lineage_corrs, marker=markers[i % len(markers)], lw=2, label=f"Fate -> {lineage}")
+            has_fate_plots = True
+
+    axes[1].set_xlabel("Gene Subsampling Percentage (%)", fontsize=11)
+    axes[1].set_ylabel("Correlation with Full Dataset", fontsize=11)
+    axes[1].set_title("CellRank Terminal Fate Stability", fontsize=12)
+    axes[1].set_ylim(0, 1.05)
+    if has_fate_plots:
+        axes[1].legend(loc="lower right")
+    axes[1].grid(True, linestyle="--", alpha=0.6)
+
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, "05_robustness_perturbation_analysis.png"), dpi=150)
     plt.close()
@@ -244,6 +314,7 @@ def run_pipeline(
             "jaccard_k30": float(overlap_30),
         },
         "velocity_confidence": conf_metrics,
+        "predicted_terminal_states": predicted_terminals,
         "lineage_drivers": top_lineage_drivers,
         "robustness": robustness_results,
     }

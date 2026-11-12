@@ -35,13 +35,38 @@ A latent representation and an inferred transition model are distinct components
 - A small quantitative comparison, including at least one robustness check.
 - A short discussion of limitations and unexpected or negative results.
 
-## Project status
+## Key Results & Methodological Findings
 
-**Proof of concept — in development.** Methods, figures, and conclusions will be added as experiments are completed. No biological or predictive claims are made at this stage.
+The pipeline evaluates single-cell representation learning and dynamical transition modeling on 3,696 pancreatic endocrine cells across 2,000 highly variable genes:
 
-## Reproducibility
+| Metric / Analysis | Linear Baseline (PCA) | Variational Generative (scVI) | Note / Biological Context |
+| :--- | :--- | :--- | :--- |
+| **Cell-type Silhouette Score** | **0.1418** | **0.2322** | **+63.8%** separation of annotated cell populations |
+| **$k$-NN Neighborhood Overlap ($k=15$)** | — | **0.1392** | Significant local manifold divergence between linear & non-linear spaces |
+| **$k$-NN Neighborhood Overlap ($k=30$)** | — | **0.2032** | Preserved broad neighborhood topology across representations |
+| **Mean Velocity Confidence** | 0.7882 | 0.7882 | Strong directional coherence across commitment paths |
+| **Velocity Robustness (90% genes)** | $r = 0.9914$ | — | High trajectory stability under minor gene subsampling |
+| **Velocity Robustness (80% genes)** | $r = 0.9970$ | — | High trajectory stability under moderate gene subsampling |
+| **Velocity Robustness (70% genes)** | $r = 0.8113$ | — | Sensitivity and divergence below 80% variable genes |
 
-The project will document data sources, package versions, random seeds, and execution steps. All analyses use publicly available data.
+### 1. Latent Representations & Local Geometry
+scVI achieves clearer cell-type separation (silhouette score $0.232$ vs. $0.142$ for PCA) by explicitly modeling library size variability and count overdispersion with negative binomial distributions. However, the $k$-NN Jaccard neighborhood overlap ($13.9\%$ at $k=15$) shows that local geometry undergoes substantial non-linear reorganization between the two representations.
+
+### 2. Transition Directions & Visual Projections
+> [!NOTE]
+> **Methodological Clarification**: The RNA velocity streamlines visualised on the PCA- and scVI-derived UMAPs project the **same underlying RNA velocity model** onto different 2D coordinate embeddings. Differences in streamline flows illustrate the visual distortions inherent to 2D projections rather than two independently trained dynamical models.
+
+### 3. Predicted Terminal States & Lineage Drivers
+CellRank's Generalized Perron Cluster Cluster Analysis (`GPCCA`) stability criterion automatically predicts stable absorbing macrostates:
+- **Alpha & Beta lineages**: Correctly captured as terminal endocrine outcomes driven by canonical transcription factors and lineage markers:
+  - **Alpha**: `Gcg` ($r = 0.888$), `Irx2` ($r = 0.691$), `Tmem27` ($r = 0.609$)
+  - **Beta**: `Nkx6-1` ($r = 0.496$), `Syt13` ($r = 0.557$), `Camk2n1` ($r = 0.537$)
+- **Ductal cells**: Identified as an absorbing boundary in this snapshot because ductal cells represent a distinct, non-differentiating lineage in late endocrine morphogenesis.
+- **Delta cells**: While biologically differentiated, Delta cells represent a rare subpopulation (70 cells, $\sim 1.9\%$ of the dataset). GPCCA detects Delta as an individual macrostate, but its reduced stability index reflects the difficulty of automated terminal state prediction on minor populations without prior constraints.
+
+### 4. Limitations & Scientific Caveats
+- **Steady-state splicing assumptions**: Conventional RNA velocity models assume constant rates of transcription, splicing, and degradation across time, an assumption frequently violated during rapid transient differentiation bursts.
+- **Snapshot inferences vs. lineage tracing**: Inferred transition graphs and fate probabilities remain model-based statistical reconstructions from static single-cell snapshots, which provide hypotheses rather than true longitudinal validation.
 
 ## Repository Structure
 

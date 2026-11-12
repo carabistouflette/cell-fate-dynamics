@@ -64,12 +64,12 @@ def neighborhood_overlap(
     float
         Average Jaccard index across all cells in [0, 1].
     """
-    nn1 = NearestNeighbors(n_neighbors=n_neighbors + 1).fit(rep1)
-    nn2 = NearestNeighbors(n_neighbors=n_neighbors + 1).fit(rep2)
+    nn1 = NearestNeighbors(n_neighbors=n_neighbors).fit(rep1)
+    nn2 = NearestNeighbors(n_neighbors=n_neighbors).fit(rep2)
 
-    # Exclude self (index 0)
-    indices1 = nn1.kneighbors(return_distance=False)[:, 1:]
-    indices2 = nn2.kneighbors(return_distance=False)[:, 1:]
+    # kneighbors() without query point already excludes the point itself
+    indices1 = nn1.kneighbors(return_distance=False)
+    indices2 = nn2.kneighbors(return_distance=False)
 
     jaccard_scores = []
     for idx1, idx2 in zip(indices1, indices2):
