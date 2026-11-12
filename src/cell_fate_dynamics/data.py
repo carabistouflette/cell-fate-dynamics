@@ -59,8 +59,12 @@ def preprocess_data(
     if copy:
         adata = adata.copy()
 
-    # scVelo filtering and normalization
-    scv.pp.filter_and_normalize(adata, min_shared_counts=min_shared_counts, n_top_genes=n_top_genes)
+    # scVelo filtering and normalization followed by log1p and HVG selection
+    scv.pp.filter_and_normalize(adata, min_shared_counts=min_shared_counts)
+    sc.pp.log1p(adata)
+    sc.pp.highly_variable_genes(adata, n_top_genes=n_top_genes)
+    adata = adata[:, adata.var["highly_variable"]].copy()
+
     sc.tl.pca(adata, svd_solver="arpack")
     sc.pp.neighbors(adata, n_pcs=n_pcs, n_neighbors=n_neighbors)
     scv.pp.moments(adata, n_pcs=n_pcs, n_neighbors=n_neighbors)

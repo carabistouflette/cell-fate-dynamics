@@ -1,0 +1,43 @@
+{
+  "dataset": {
+    "n_cells": 3696,
+    "n_genes_raw": 27998,
+    "n_genes_filtered": 2000,
+    "cell_types": {
+      "Ductal": 916,
+      "Ngn3 high EP": 642,
+      "Pre-endocrine": 592,
+      "Beta": 591,
+      "Alpha": 481,
+      "Ngn3 low EP": 262,
+      "Epsilon": 142,
+      "Delta": 70
+    }
+  },
+  "silhouette_scores": {
+    "X_pca": 0.1417735069990158,
+    "X_scVI": 0.23221051692962646
+  },
+  "neighborhood_overlap": {
+    "jaccard_k15": 0.12588098219723495,
+    "jaccard_k30": 0.19107506866016463
+  },
+  "velocity_confidence": {
+    "mean_velocity_confidence": 0.7882210305808526,
+    "mean_velocity_length": 10.280933380126953
+  },
+  "robustness": {
+    "gene_downsample_90%": {
+      "correlation_velocity_confidence": 0.991404665815288,
+      "mean_confidence": 0.791172836986834
+    },
+    "gene_downsample_80%": {
+      "correlation_velocity_confidence": 0.9970331414962407,
+      "mean_confidence": 0.7943266974288358
+    },
+    "gene_downsample_70%": {
+      "correlation_velocity_confidence": 0.8112544667289926,
+      "mean_confidence": 0.7590834417964233
+    }
+  }
+}
